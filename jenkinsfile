@@ -5,8 +5,8 @@ timestamps {
 node () {
 
 wrap([$class: 'Xvfb']) {
-	stage ('Test.App.CP4I.Deployment - Checkout') {
- 	 checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'jenkins-github', url: 'https://github.com/awasthan/Test.App.CP4I.Deployment.git']]]) 
+	stage ('CP4I.Deployment - Checkout') {
+ 	 checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'jenkins-github', url: 'https://github.com/awasthan/CP4I.Deployment.git']]]) 
 	}
 	stage ('Test.App.CP4I.Deployment - Build') {
  	
