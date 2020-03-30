@@ -1,0 +1,49 @@
+// @Author: Anand Awasthi (anand.awasthi@in.ibm.com)
+
+timestamps {
+
+node () {
+
+wrap([$class: 'Xvfb']) {
+	stage ('Test.App.CP4I.Deployment - Checkout') {
+ 	 checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'jenkins-github', url: 'https://github.com/awasthan/Test.App.CP4I.Deployment.git']]]) 
+	}
+	stage ('Test.App.CP4I.Deployment - Build') {
+ 	
+artifactResolver artifacts: [artifact(artifactId: '${ACE_APP1}', extension: 'zip', groupId: 'com.ibm.esb', version: '${ACE_APP1_VERSION}'), artifact(artifactId: '${ACE_APP2}', extension: 'zip', groupId: 'com.ibm.esb', version: '${ACE_APP2_VERSION}')], targetDirectory: '/var/icp-builds/${ACE_APP1}'
+sh label: '', script: '''#!/bin/sh
+cd /var/icp-builds/${ACE_APP1}
+unzip ${ACE_APP1}-${ACE_APP1_VERSION}.zip
+chmod 777 *
+cp ${ACE_APP1}_DEV_${ACE_APP1_VERSION}.bar /var/lib/jenkins/jobs/${JOB_NAME}/workspace
+unzip ${ACE_APP2}-${ACE_APP2_VERSION}.zip
+chmod 777 *
+cp ${ACE_APP2}_DEV_${ACE_APP2_VERSION}.bar /var/lib/jenkins/jobs/${JOB_NAME}/workspace
+cd ${WORKSPACE}
+oc login ${OCP_API_URL} -u admin -p ${REGISTRY_PASSWORD} --insecure-skip-tls-verify
+oc project ${Namespace}
+docker login ${OpenshiftRegistryURL} -u $(oc whoami) -p $(oc whoami -t)
+docker build -t ${imagename}:${BUILD_NUMBER} .
+docker tag ${imagename}:${BUILD_NUMBER} ${targetrepo}/${imagename}:${tag}-amd64
+docker push ${targetrepo}/${imagename}:${tag}-amd64
+source /etc/profile
+cloudctl login -a ${ICP_CONSOLE_URL} -n ${Namespace} -u admin -p ${REGISTRY_PASSWORD} –skip-ssl-validation
+cd /opt/certs
+helm init --client-only
+helm repo add local-charts --ca-file ${HELM_CERT_FILE_NAME} ${ICP_CONSOLE_URL}:443/helm-repo/charts
+if test ${DeploymentType} = \'install\'; then
+helm ${DeploymentType} --name $ReleaseName local-charts/ibm-ace-server-icp4i-prod --version v3.0.0 --namespace ${Namespace} --set imageType=ace --set image.aceonly=image-registry.openshift-image-registry.svc:5000/ace/${imagename}:${tag} --set image.acemqclient=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-mqclient-server-prod:11.0.0.6.1 --set image.acemq=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-mq-server-prod:11.0.0.6.1 --set image.configurator=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-icp-configurator-prod:11.0.0.6.1 --set image.designerflows=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-designer-flows-prod:11.0.0.6.1 --set image.pullSecret=${IMAGE_PULL_SECRET} --set persistence.enabled=false --set persistence.useDynamicProvisioning=false --set integrationServer.name=${IntegrationServerName} --set aceonly.replicaCount=1 --set license=accept --tls
+oc project ${Namespace}
+oc expose svc ${ReleaseName}-ibm-ace-server-icp4i-prod --port=7800
+oc autoscale deployment/${ReleaseName}-ibm-ace-server-icp4i-prod --min 1 --max 3 --cpu-percent=25
+else
+helm ${DeploymentType} $ReleaseName local-charts/ibm-ace-server-icp4i-prod --version v3.0.0 --namespace ${Namespace} --set imageType=ace --set image.aceonly=image-registry.openshift-image-registry.svc:5000/ace/${imagename}:${tag} --set image.acemqclient=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-mqclient-server-prod:11.0.0.6.1 --set image.acemq=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-mq-server-prod:11.0.0.6.1 --set image.configurator=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-icp-configurator-prod:11.0.0.6.1 --set image.designerflows=image-registry.openshift-image-registry.svc:5000/ace/ibm-ace-designer-flows-prod:11.0.0.6.1 --set image.pullSecret=${IMAGE_PULL_SECRET} --set persistence.enabled=false --set persistence.useDynamicProvisioning=false --set integrationServer.name=${IntegrationServerName} --set aceonly.replicaCount=1 --set license=accept --tls
+fi
+cd /var/icp-builds
+rm -rf ${ACE_APP1}
+rm -rf ${ACE_APP2}''' 
+	}
+}
+cleanWs()
+}
+}
